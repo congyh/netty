@@ -383,6 +383,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
+                // Note: 第一个是Channel绑定到Selector上, 第二个为0的意思是不关心除了绑定之外的任何事
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {
@@ -416,7 +417,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         readPending = true;
 
         final int interestOps = selectionKey.interestOps();
+        // Note: 这里很重要, 这里在完成bind()之后, interstOps会变成0
+        // 所以这里会通过, 然后这里的readInterestOp实际上是OP_ACCEPT, 也就是1 << 4
+        // TODO: 这里还是没太看懂
         if ((interestOps & readInterestOp) == 0) {
+            // Note: 向selector注册OP_ACCEPT事件
             selectionKey.interestOps(interestOps | readInterestOp);
         }
     }

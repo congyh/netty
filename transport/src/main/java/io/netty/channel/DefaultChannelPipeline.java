@@ -1325,6 +1325,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         }
     }
 
+    // Note: HeadContext是pipeline中的首个
     final class HeadContext extends AbstractChannelHandlerContext
             implements ChannelOutboundHandler, ChannelInboundHandler {
 
@@ -1419,6 +1420,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            // Note: 触发ChannelActive事件的源头
             ctx.fireChannelActive();
 
             readIfIsAutoRead();

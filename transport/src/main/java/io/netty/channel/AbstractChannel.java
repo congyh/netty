@@ -470,9 +470,11 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // Note: 绑定线程
             AbstractChannel.this.eventLoop = eventLoop;
 
             if (eventLoop.inEventLoop()) {
+                // Note: 做实际的注册操作
                 register0(promise);
             } else {
                 try {
@@ -494,6 +496,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
         }
 
         private void register0(ChannelPromise promise) {
+            // Note: 一共做三件事
+            // 1. 调用jdk底层进行实际的注册
+            // 2. 回调client方法
+            // 3. 触发Channel registered事件, 告知client
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register
                 // call was outside of the eventLoop
@@ -501,15 +507,18 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // Note: 对于Nio方式而言, 这里点选Nio实现类
                 doRegister();
                 neverRegistered = false;
                 registered = true;
 
+                // Note: 实际上就对应了ServerHandler的handlerAdded()回调
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
                 pipeline.invokeHandlerAddedIfNeeded();
 
                 safeSetSuccess(promise);
+                // Note: 实际上就对应了ServerHandler的channelRegistered()回调
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
@@ -555,6 +564,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
 
             boolean wasActive = isActive();
             try {
+                // Note: 这里会做JDK底层的绑定, 这里我们跟进NioServerSocketChannel
                 doBind(localAddress);
             } catch (Throwable t) {
                 safeSetFailure(promise, t);
@@ -563,6 +573,7 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
 
             if (!wasActive && isActive()) {
+                // Note: 触发ChannelActive事件
                 invokeLater(new Runnable() {
                     @Override
                     public void run() {
