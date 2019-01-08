@@ -53,6 +53,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
         @Override
         public EventExecutor next() {
+            // Note: 长度是2的幂次, 这是Netty做的优化
             return executors[idx.getAndIncrement() & executors.length - 1];
         }
     }
@@ -67,6 +68,8 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
         @Override
         public EventExecutor next() {
+            // Note: 对于长度不是2的幂次的EventLoopGroup, 使用了取余操作, 这个是没有&操作快的.
+            // 对于2的幂次的情况, Netty做了优化
             return executors[Math.abs(idx.getAndIncrement() % executors.length)];
         }
     }

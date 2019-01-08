@@ -401,6 +401,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     @Override
     protected void run() {
+        // Note: 本方法是NioEventLoop执行的主体
         for (;;) {
             try {
                 switch (selectStrategy.calculateStrategy(selectNowSupplier, hasTasks())) {
@@ -446,6 +447,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
+                // Note: ioRatio是控制processSelectedKeys()和runAllTasks()两个方法的执行时间的.
+                // processSelectedKeys()主要是处理IO相关的事件的.
+                // runAllTasks()是用来处理外部线程扔到queue中的task的.
+                // 默认是50, 通过下面的一段逻辑, 默认50情况下, 会控制上述两个方法运行的时间相当.
                 final int ioRatio = this.ioRatio;
                 if (ioRatio == 100) {
                     try {
@@ -730,10 +735,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         try {
             int selectCnt = 0;
             long currentTimeNanos = System.nanoTime();
+            // Note: 算出队列中第一个task的超时时间, 作为此次select结束的最大限定时间.
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
 
             for (;;) {
+                // Note: 每次for循环, 会先计算是否超时
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
+                // Note: 如果超时了, 直接跳过本次select操作
                 if (timeoutMillis <= 0) {
                     if (selectCnt == 0) {
                         selector.selectNow();
@@ -747,11 +755,14 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 // If we don't, the task might be pended until select operation was timed out.
                 // It might be pended until idle timeout if IdleStateHandler existed in pipeline.
                 if (hasTasks() && wakenUp.compareAndSet(false, true)) {
+                    // Note: 这里是非阻塞型select调用, 也就是说, 如果没有channel准备就绪, 那么会立即返回
                     selector.selectNow();
                     selectCnt = 1;
                     break;
                 }
 
+                // Note: 如果task queue为空的时候, 会进行一个阻塞式的select操作.
+                // timeoutMillis是最大阻塞时间, 也就是最大会等待这么长的时间, 或者在其时间内至少有一个事件返回.
                 int selectedKeys = selector.select(timeoutMillis);
                 selectCnt ++;
 
@@ -778,8 +789,15 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 }
 
                 long time = System.nanoTime();
+                // Note: 这里是避免空轮询非常重要的点.
+                // 具体原理是通过比较select耗时和阻塞式select的timeout时间,
+                // 判断是进行了非阻塞式空轮询还是进行的是阻塞式轮询
+                // - 如果是阻塞式轮询, 那么肯定没问题;
+                // - 如果是非阻塞式轮询, 那么为了避免无限空轮询,
+                // 这里通过控制允许的最大空轮询次数(SELECTOR_AUTO_REBUILD_THRESHOLD, 默认是512)来解决.
                 if (time - TimeUnit.MILLISECONDS.toNanos(timeoutMillis) >= currentTimeNanos) {
                     // timeoutMillis elapsed without anything selected.
+                    // Note: if成立, 就证明是阻塞式轮询, selectCnt必然是1.
                     selectCnt = 1;
                 } else if (SELECTOR_AUTO_REBUILD_THRESHOLD > 0 &&
                         selectCnt >= SELECTOR_AUTO_REBUILD_THRESHOLD) {
@@ -789,6 +807,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                             "Selector.select() returned prematurely {} times in a row; rebuilding Selector {}.",
                             selectCnt, selector);
 
+                    // 解决空轮询bug的终极大法就是新建一个selector, 然后把selectKeys重新attach过来.
+                    // 之前也有人尝试复用selector, 重新注册key, 但在多线程并发环境下还是有几率会出现空轮询bug.
+                    // 参照: http://www.10tiao.com/html/308/201602/401718035/1.html
                     rebuildSelector();
                     selector = this.selector;
 

@@ -162,6 +162,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         this.addTaskWakesUp = addTaskWakesUp;
         this.maxPendingTasks = Math.max(16, maxPendingTasks);
         this.executor = ObjectUtil.checkNotNull(executor, "executor");
+        // Note: 这里要跟进的是NioEventLoop的一个实现.
         taskQueue = newTaskQueue(this.maxPendingTasks);
         rejectedExecutionHandler = ObjectUtil.checkNotNull(rejectedHandler, "rejectedHandler");
     }
@@ -760,7 +761,10 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         if (task == null) {
             throw new NullPointerException("task");
         }
-
+        // Note: 这里会判断是否是在同一个线程中
+        // 因为现在还是AbstractBootstrap启动阶段, 所以EventLoop线程还并没有被创建出来,
+        // 所以现在应该还是在main线程中, inEventLoop()调用返回false
+        // 触发startThread()调用.
         boolean inEventLoop = inEventLoop();
         addTask(task);
         if (!inEventLoop) {

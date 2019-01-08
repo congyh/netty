@@ -68,6 +68,10 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      */
     protected MultithreadEventExecutorGroup(int nThreads, Executor executor,
                                             EventExecutorChooserFactory chooserFactory, Object... args) {
+        // Note: 创建一个EventExecutorGroup一共做了三件事:
+        // 1. 创建executor
+        // 2. 配置executor对应的taskqueue(newChild调用中, 在NioEventLoop实现类中对应的是MpscQueue, 就是多生产者单消费者)
+        // 3. 为executor配置chooser, 实际上就是如何选择执行线程.
         if (nThreads <= 0) {
             throw new IllegalArgumentException(String.format("nThreads: %d (expected: > 0)", nThreads));
         }

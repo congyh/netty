@@ -60,6 +60,7 @@ public class DefaultThreadFactory implements ThreadFactory {
     }
 
     public DefaultThreadFactory(Class<?> poolType, boolean daemon, int priority) {
+        // Note: 这里负责进行线程命名了
         this(toPoolName(poolType), daemon, priority);
     }
 
@@ -105,6 +106,8 @@ public class DefaultThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
+        // Note: 实际上是通过ThreadFactory, 每次通过new Thread方法创建Thread对象的?
+        // TODO: 那么这种方式效率如何保证?
         Thread t = newThread(FastThreadLocalRunnable.wrap(r), prefix + nextId.incrementAndGet());
         try {
             if (t.isDaemon() != daemon) {
@@ -121,6 +124,8 @@ public class DefaultThreadFactory implements ThreadFactory {
     }
 
     protected Thread newThread(Runnable r, String name) {
+        // Note: FastThreadLocalThread实际上就是对ThreadLocal做了一些优化.
+        // TODO: 做了哪些优化还需要看
         return new FastThreadLocalThread(threadGroup, r, name);
     }
 }
